@@ -43,7 +43,6 @@ struct MainView: View {
             applyPendingSelection()
         }
         .onChange(of: appSelection.pending) { applyPendingSelection() }
-        .onChange(of: supervisor.revision) { clearFinishedTemporarySelection() }
         .sheet(isPresented: $addingProject) {
             ProjectForm(
                 project: nil,
@@ -439,13 +438,6 @@ struct MainView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func clearFinishedTemporarySelection() {
-        guard case .server(let id) = selection,
-              supervisor.temporaryRuntimeIDs.contains(id),
-              supervisor.runtime(for: id)?.isRunning == false else { return }
-        selection = nil
     }
 
     private func applyPendingSelection() {
