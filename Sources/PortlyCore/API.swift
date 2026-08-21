@@ -18,6 +18,11 @@ public enum PortlyAPI {
 
     public struct Empty: Codable { public init() {} }
 
+    public struct OpenRequest: Codable {
+        public var destination: String?
+        public init(destination: String? = nil) { self.destination = destination }
+    }
+
     public struct TargetRequest: Codable {
         /// Server id/name, or "project/server". Mutually exclusive with `project`.
         public var server: String?
@@ -35,12 +40,23 @@ public enum PortlyAPI {
         public var root: String
         public var icon: String?
         public var color: String?
+        public var memoryLimitMode: MemoryLimitMode?
+        public var memoryLimitBytes: UInt64?
 
-        public init(name: String, root: String, icon: String? = nil, color: String? = nil) {
+        public init(
+            name: String,
+            root: String,
+            icon: String? = nil,
+            color: String? = nil,
+            memoryLimitMode: MemoryLimitMode? = nil,
+            memoryLimitBytes: UInt64? = nil
+        ) {
             self.name = name
             self.root = root
             self.icon = icon
             self.color = color
+            self.memoryLimitMode = memoryLimitMode
+            self.memoryLimitBytes = memoryLimitBytes
         }
     }
 
@@ -54,6 +70,7 @@ public enum PortlyAPI {
         public var healthURL: String?
         public var healthStatus: Int?
         public var autoRestart: Bool?
+        public var actions: [ServerAction]?
         /// Start the server immediately after adding it.
         public var start: Bool?
 
@@ -61,7 +78,7 @@ public enum PortlyAPI {
             project: String, name: String, command: String, port: Int? = nil,
             directory: String? = nil, env: [String: String]? = nil,
             healthURL: String? = nil, healthStatus: Int? = nil,
-            autoRestart: Bool? = nil, start: Bool? = nil
+            autoRestart: Bool? = nil, actions: [ServerAction]? = nil, start: Bool? = nil
         ) {
             self.project = project
             self.name = name
@@ -72,7 +89,51 @@ public enum PortlyAPI {
             self.healthURL = healthURL
             self.healthStatus = healthStatus
             self.autoRestart = autoRestart
+            self.actions = actions
             self.start = start
+        }
+    }
+
+    public struct RunServerActionRequest: Codable {
+        public var server: String
+        public var action: String
+        public var timeoutSeconds: Int?
+
+        public init(server: String, action: String, timeoutSeconds: Int? = nil) {
+            self.server = server
+            self.action = action
+            self.timeoutSeconds = timeoutSeconds
+        }
+    }
+
+    public struct RunTemporaryRequest: Codable {
+        public var name: String
+        public var command: String
+        public var directory: String
+        public var port: Int?
+        public var env: [String: String]?
+        public var healthURL: String?
+        public var healthStatus: Int?
+        public var timeoutSeconds: Int?
+
+        public init(
+            name: String,
+            command: String,
+            directory: String,
+            port: Int? = nil,
+            env: [String: String]? = nil,
+            healthURL: String? = nil,
+            healthStatus: Int? = nil,
+            timeoutSeconds: Int? = nil
+        ) {
+            self.name = name
+            self.command = command
+            self.directory = directory
+            self.port = port
+            self.env = env
+            self.healthURL = healthURL
+            self.healthStatus = healthStatus
+            self.timeoutSeconds = timeoutSeconds
         }
     }
 
@@ -86,6 +147,7 @@ public enum PortlyAPI {
         public var healthURL: String?
         public var healthStatus: Int?
         public var autoRestart: Bool?
+        public var actions: [ServerAction]?
 
         public init(server: String) { self.server = server }
     }
@@ -149,6 +211,18 @@ public enum PortlyAPI {
     public struct TakeOverRequest: Codable {
         public var server: String
         public init(server: String) { self.server = server }
+    }
+
+    public struct UpdateMemoryLimitRequest: Codable {
+        public var project: String?
+        public var mode: MemoryLimitMode
+        public var bytes: UInt64?
+
+        public init(project: String? = nil, mode: MemoryLimitMode, bytes: UInt64? = nil) {
+            self.project = project
+            self.mode = mode
+            self.bytes = bytes
+        }
     }
 
     public struct ActionResponse: Codable {
