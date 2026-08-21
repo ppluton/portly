@@ -274,7 +274,7 @@ final class Supervisor: ObservableObject {
     }
 
     var visibleTemporaryRuntimes: [ServerRuntime] {
-        temporaryRuntimes.filter(\.isRunning)
+        temporaryRuntimes
     }
 
     func runtimes(inProject id: String) -> [ServerRuntime] {

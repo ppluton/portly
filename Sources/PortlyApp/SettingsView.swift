@@ -539,8 +539,8 @@ private struct MemoryLimitEditor: View {
 
     private var validationMessage: String {
         if showValidationError, parsedValue == nil {
-            return "Enter a size of at least 64 MB, for example 5GB."
+            return "Enter a size of at least 128 MB, for example 5GB."
         }
-        return "Examples: 512MB, 5GB, or 5Go. Minimum: 64 MB."
+        return "Examples: 512MB, 5GB, or 5Go. Minimum: 128 MB."
     }
 }

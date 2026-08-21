@@ -165,7 +165,8 @@ enum PortInspector {
         guard let occupant = occupant(of: port) else { return .failure(.portFree) }
         if let expectedPID, occupant.pid != expectedPID { return .failure(.listenerChanged) }
 
-        if let container = DockerPortInspector.container(publishing: port) {
+        let dockerLookup = DockerPortInspector.lookupContainer(publishing: port)
+        if case .success(let container?) = dockerLookup {
             switch DockerPortInspector.stop(container) {
             case .success:
                 return .success(
@@ -180,6 +181,19 @@ enum PortInspector {
             }
         }
 
+        if isDockerDesktopBackend(occupant.command) {
+            let detail: String
+            switch dockerLookup {
+            case .failure(let error):
+                detail = error.localizedDescription
+            case .success(nil):
+                detail = "Docker Desktop owns this port, but Portly could not identify a matching container."
+            case .success(.some(_)):
+                detail = "Portly could not stop the Docker container safely."
+            }
+            return .failure(.docker(detail))
+        }
+
         guard kill(pid: occupant.pid) else { return .failure(.processRefused(occupant.pid)) }
         return .success(
             StopOutcome(
@@ -188,6 +202,12 @@ enum PortInspector {
                 dockerContainer: nil
             )
         )
+    }
+
+    static func isDockerDesktopBackend(_ command: String) -> Bool {
+        let normalized = command.lowercased()
+        return normalized.hasPrefix("com.dock")
+            || (normalized.contains("docker") && normalized.contains("backend"))
     }
 
     private static func portNumber(from endpoint: String) -> Int? {

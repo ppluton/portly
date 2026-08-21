@@ -32,20 +32,40 @@ enum DockerPortInspector {
     }
 
     static func container(publishing port: Int) -> DockerPublishedContainer? {
-        guard let executable = dockerExecutable() else { return nil }
+        try? lookupContainer(publishing: port).get()
+    }
+
+    static func lookupContainer(
+        publishing port: Int
+    ) -> Result<DockerPublishedContainer?, DockerError> {
+        guard let executable = dockerExecutable() else { return .failure(.unavailable) }
         let listed = run(
             executable,
             ["ps", "--filter", "publish=\(port)", "--format", "{{.ID}}"]
         )
-        guard listed.status == 0 else { return nil }
+        guard listed.status == 0 else {
+            return .failure(.commandFailed(commandFailure(
+                listed.output,
+                fallback: "Docker could not list containers."
+            )))
+        }
         let ids = String(decoding: listed.output, as: UTF8.self)
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
-        guard !ids.isEmpty else { return nil }
+        guard !ids.isEmpty else { return .success(nil) }
 
         let inspected = run(executable, ["inspect"] + ids)
-        guard inspected.status == 0 else { return nil }
-        return try? parseInspectResponse(inspected.output, publishing: port)
+        guard inspected.status == 0 else {
+            return .failure(.commandFailed(commandFailure(
+                inspected.output,
+                fallback: "Docker could not inspect the container."
+            )))
+        }
+        do {
+            return .success(try parseInspectResponse(inspected.output, publishing: port))
+        } catch {
+            return .failure(.commandFailed("Docker returned an unreadable container description."))
+        }
     }
 
     static func stop(_ container: DockerPublishedContainer) -> Result<Void, DockerError> {
@@ -122,6 +142,12 @@ enum DockerPortInspector {
         ]
         return candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
             .map { URL(fileURLWithPath: $0) }
+    }
+
+    private static func commandFailure(_ data: Data, fallback: String) -> String {
+        let message = String(decoding: data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? fallback : message
     }
 
     private static func run(_ executable: URL, _ arguments: [String]) -> (status: Int32, output: Data) {

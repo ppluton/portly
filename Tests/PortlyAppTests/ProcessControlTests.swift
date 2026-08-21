@@ -96,4 +96,10 @@ final class ProcessControlTests: XCTestCase {
         XCTAssertEqual(container?.composeService, "serverless-redis-http")
         XCTAssertNil(try DockerPortInspector.parseInspectResponse(data, publishing: 8080))
     }
+
+    func testDockerDesktopBackendIsNeverTreatedAsAnOrdinaryProcess() {
+        XCTAssertTrue(PortInspector.isDockerDesktopBackend("com.docker.backend"))
+        XCTAssertTrue(PortInspector.isDockerDesktopBackend("Docker Desktop Backend"))
+        XCTAssertFalse(PortInspector.isDockerDesktopBackend("node"))
+    }
 }

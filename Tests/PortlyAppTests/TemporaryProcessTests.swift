@@ -90,10 +90,10 @@ final class TemporaryProcessTests: XCTestCase {
         XCTAssertEqual(timedOut.processExitCode, 124)
     }
 
-    func testRawWaitStatusIsNormalizedBeforeExposingExitCode() {
-        XCTAssertEqual(ServerRuntime.normalizedProcessExitCode(0), 0)
-        XCTAssertEqual(ServerRuntime.normalizedProcessExitCode(7 << 8), 7)
-        XCTAssertEqual(ServerRuntime.normalizedProcessExitCode(15), 143)
-        XCTAssertNil(ServerRuntime.normalizedProcessExitCode(nil))
+    func testDecodedNonZeroExitCodesAreNotNormalizedTwice() {
+        XCTAssertEqual(ProcessExitStatus.normalize(7), 7)
+        XCTAssertEqual(ProcessExitStatus.normalize(128), 128)
+        XCTAssertEqual(ProcessExitStatus.normalize(7 << 8), 7)
+        XCTAssertNil(ProcessExitStatus.normalize(nil))
     }
 }

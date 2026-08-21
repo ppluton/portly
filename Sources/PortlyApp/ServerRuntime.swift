@@ -293,9 +293,6 @@ final class ServerRuntime: NSObject, ObservableObject, LocalProcessDelegate, Ter
     }
 
     func stop(then completion: (() -> Void)? = nil) {
-        if isTemporaryJob, !temporaryTimedOut {
-            temporaryStoppedByUser = true
-        }
         guard let process, process.running, process.shellPid > 0 else {
             takeoverPending = false
             if isTemporaryJob, temporaryFinishedAt == nil { temporaryFinishedAt = Date() }
@@ -304,6 +301,9 @@ final class ServerRuntime: NSObject, ObservableObject, LocalProcessDelegate, Ter
             setState(.stopped)
             completion?()
             return
+        }
+        if isTemporaryJob, !temporaryTimedOut {
+            temporaryStoppedByUser = true
         }
         manualStop = true
         stopHealthTimer()
@@ -598,27 +598,15 @@ final class ServerRuntime: NSObject, ObservableObject, LocalProcessDelegate, Ter
 
     // MARK: - LocalProcessDelegate
 
-    /// SwiftTerm reports the raw `waitpid` status. Convert normal exits from
-    /// `code << 8` and signals to the shell convention `128 + signal` before
-    /// exposing them through the API or using them as the CLI exit status.
-    static func normalizedProcessExitCode(_ rawStatus: Int32?) -> Int32? {
-        guard let rawStatus else { return nil }
-        let signal = rawStatus & 0x7F
-        if signal == 0 { return (rawStatus >> 8) & 0xFF }
-        if signal != 0x7F { return 128 + signal }
-        return rawStatus
-    }
-
     func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let exitCode = ProcessExitStatus.normalize(exitCode)
+            let normalizedExitCode = ProcessExitStatus.normalize(exitCode)
             self.killWork?.cancel()
             self.killWork = nil
             self.stopHealthTimer()
             self.timeoutWork?.cancel()
             self.timeoutWork = nil
-            let normalizedExitCode = Self.normalizedProcessExitCode(exitCode)
             self.lastExitCode = normalizedExitCode
             self.pid = nil
             self.healthy = false
