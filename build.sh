@@ -261,19 +261,36 @@ if [ "$INSTALL" -eq 1 ]; then
   cp -R "$APP" /Applications/Portly.app
   echo "    /Applications/Portly.app"
 
-  # First writable directory that is already on PATH wins.
-  CLI_TARGET=""
-  for candidate in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
-    if [ -d "$candidate" ] && [ -w "$candidate" ]; then
-      CLI_TARGET="$candidate/portly"
-      break
+  # Keep every existing user-writable Portly CLI in sync. Otherwise an older
+  # copy earlier on PATH can shadow the freshly installed binary.
+  CLI_TARGETS=()
+  for candidate in "$HOME/.local/bin/portly" /opt/homebrew/bin/portly /usr/local/bin/portly; do
+    if { [ -e "$candidate" ] || [ -L "$candidate" ]; } && [ -w "$candidate" ]; then
+      CLI_TARGETS+=("$candidate")
     fi
   done
 
-  if [ -n "$CLI_TARGET" ]; then
-    cp "$APP/Contents/Resources/portly-cli" "$CLI_TARGET"
-    chmod +x "$CLI_TARGET"
-    echo "    $CLI_TARGET"
+  # On a first install, choose the first recognized writable directory in the
+  # user's actual PATH order instead of imposing a hard-coded precedence.
+  if [ "${#CLI_TARGETS[@]}" -eq 0 ]; then
+    while IFS= read -r candidate; do
+      case "$candidate" in
+        "$HOME/.local/bin"|/opt/homebrew/bin|/usr/local/bin)
+          if [ -d "$candidate" ] && [ -w "$candidate" ]; then
+            CLI_TARGETS+=("$candidate/portly")
+            break
+          fi
+          ;;
+      esac
+    done < <(printf '%s' "$PATH" | tr ':' '\n')
+  fi
+
+  if [ "${#CLI_TARGETS[@]}" -gt 0 ]; then
+    for cli_target in "${CLI_TARGETS[@]}"; do
+      cp "$APP/Contents/Resources/portly-cli" "$cli_target"
+      chmod +x "$cli_target"
+      echo "    $cli_target"
+    done
   else
     echo "    no writable bin directory found, run:"
     echo "      sudo cp '$BIN_DIR/portly' /usr/local/bin/portly"
