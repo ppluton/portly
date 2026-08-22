@@ -261,28 +261,41 @@ if [ "$INSTALL" -eq 1 ]; then
   cp -R "$APP" /Applications/Portly.app
   echo "    /Applications/Portly.app"
 
-  # Keep every existing user-writable Portly CLI in sync. Otherwise an older
-  # copy earlier on PATH can shadow the freshly installed binary.
+  # Keep every existing user-writable Portly CLI on PATH in sync. Otherwise an
+  # older binary can shadow the freshly installed copy, while an off-PATH copy
+  # must not prevent installation into a reachable directory.
   CLI_TARGETS=()
-  for candidate in "$HOME/.local/bin/portly" /opt/homebrew/bin/portly /usr/local/bin/portly; do
-    if { [ -e "$candidate" ] || [ -L "$candidate" ]; } && [ -w "$candidate" ]; then
-      CLI_TARGETS+=("$candidate")
-    fi
+  IFS=':' read -r -a CLI_PATH_DIRECTORIES <<< "$PATH"
+  for candidate_directory in "${CLI_PATH_DIRECTORIES[@]}"; do
+    case "$candidate_directory" in
+      "$HOME/.local/bin"|/opt/homebrew/bin|/usr/local/bin)
+        candidate="$candidate_directory/portly"
+        if { [ -e "$candidate" ] || [ -L "$candidate" ]; } && [ -w "$candidate" ]; then
+          already_selected=0
+          if [ "${#CLI_TARGETS[@]}" -gt 0 ]; then
+            for cli_target in "${CLI_TARGETS[@]}"; do
+              [ "$cli_target" = "$candidate" ] && already_selected=1
+            done
+          fi
+          [ "$already_selected" -eq 1 ] || CLI_TARGETS+=("$candidate")
+        fi
+        ;;
+    esac
   done
 
   # On a first install, choose the first recognized writable directory in the
-  # user's actual PATH order instead of imposing a hard-coded precedence.
+  # user's actual PATH order.
   if [ "${#CLI_TARGETS[@]}" -eq 0 ]; then
-    while IFS= read -r candidate; do
-      case "$candidate" in
+    for candidate_directory in "${CLI_PATH_DIRECTORIES[@]}"; do
+      case "$candidate_directory" in
         "$HOME/.local/bin"|/opt/homebrew/bin|/usr/local/bin)
-          if [ -d "$candidate" ] && [ -w "$candidate" ]; then
-            CLI_TARGETS+=("$candidate/portly")
+          if [ -d "$candidate_directory" ] && [ -w "$candidate_directory" ]; then
+            CLI_TARGETS+=("$candidate_directory/portly")
             break
           fi
           ;;
       esac
-    done < <(printf '%s' "$PATH" | tr ':' '\n')
+    done
   fi
 
   if [ "${#CLI_TARGETS[@]}" -gt 0 ]; then
