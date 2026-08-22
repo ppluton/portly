@@ -261,19 +261,49 @@ if [ "$INSTALL" -eq 1 ]; then
   cp -R "$APP" /Applications/Portly.app
   echo "    /Applications/Portly.app"
 
-  # First writable directory that is already on PATH wins.
-  CLI_TARGET=""
-  for candidate in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
-    if [ -d "$candidate" ] && [ -w "$candidate" ]; then
-      CLI_TARGET="$candidate/portly"
-      break
-    fi
+  # Keep every existing user-writable Portly CLI on PATH in sync. Otherwise an
+  # older binary can shadow the freshly installed copy, while an off-PATH copy
+  # must not prevent installation into a reachable directory.
+  CLI_TARGETS=()
+  IFS=':' read -r -a CLI_PATH_DIRECTORIES <<< "$PATH"
+  for candidate_directory in "${CLI_PATH_DIRECTORIES[@]}"; do
+    case "$candidate_directory" in
+      "$HOME/.local/bin"|/opt/homebrew/bin|/usr/local/bin)
+        candidate="$candidate_directory/portly"
+        if { [ -e "$candidate" ] || [ -L "$candidate" ]; } && [ -w "$candidate" ]; then
+          already_selected=0
+          if [ "${#CLI_TARGETS[@]}" -gt 0 ]; then
+            for cli_target in "${CLI_TARGETS[@]}"; do
+              [ "$cli_target" = "$candidate" ] && already_selected=1
+            done
+          fi
+          [ "$already_selected" -eq 1 ] || CLI_TARGETS+=("$candidate")
+        fi
+        ;;
+    esac
   done
 
-  if [ -n "$CLI_TARGET" ]; then
-    cp "$APP/Contents/Resources/portly-cli" "$CLI_TARGET"
-    chmod +x "$CLI_TARGET"
-    echo "    $CLI_TARGET"
+  # On a first install, choose the first recognized writable directory in the
+  # user's actual PATH order.
+  if [ "${#CLI_TARGETS[@]}" -eq 0 ]; then
+    for candidate_directory in "${CLI_PATH_DIRECTORIES[@]}"; do
+      case "$candidate_directory" in
+        "$HOME/.local/bin"|/opt/homebrew/bin|/usr/local/bin)
+          if [ -d "$candidate_directory" ] && [ -w "$candidate_directory" ]; then
+            CLI_TARGETS+=("$candidate_directory/portly")
+            break
+          fi
+          ;;
+      esac
+    done
+  fi
+
+  if [ "${#CLI_TARGETS[@]}" -gt 0 ]; then
+    for cli_target in "${CLI_TARGETS[@]}"; do
+      cp "$APP/Contents/Resources/portly-cli" "$cli_target"
+      chmod +x "$cli_target"
+      echo "    $cli_target"
+    done
   else
     echo "    no writable bin directory found, run:"
     echo "      sudo cp '$BIN_DIR/portly' /usr/local/bin/portly"
